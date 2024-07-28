@@ -17,17 +17,21 @@ func init() {
 	logger = log.New(os.Stderr, "crusher17: ", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-func SendMessage(senderSk string, receiverPub string, message string) (string, error) {
+func SendMessage(senderSk string, receiverPub string, message string, senderRelay string, receiverRelay string, subject string) (string, error) {
 	senderPub, err := nostr.GetPublicKey(senderSk)
 	if err != nil {
 		logger.Printf("error getting public key 1: %v", err)
 		return "", err
 	}
 	tags := nostr.Tags{
-		nostr.Tag{"p", senderPub, "wss://auth.nostr1.com"},
-		nostr.Tag{"p", receiverPub, "wss://auth.nostr1.com"},
-		nostr.Tag{"subject", "conversation-title"},
+		nostr.Tag{"p", senderPub, senderRelay},
+		nostr.Tag{"p", receiverPub, receiverRelay},
 	}
+
+	if subject != "" {
+		tags = append(tags, nostr.Tag{"subject", subject})
+	}
+
 	salt := make([]byte, 32)
 	rand.Read(salt)
 	// Create a chat message
@@ -74,12 +78,14 @@ func SendMessage(senderSk string, receiverPub string, message string) (string, e
 		logger.Printf("error encrypting seal: %v", err)
 		return "", err
 	}
+
+	// TODO: should we create two giftwraps, one for sender and one for receiver?
 	// Create a gift wrap (kind 1059) using the encrypted seal
 	giftWrap := nostr.Event{
 		PubKey:    randoPk,
 		CreatedAt: nostr.Now(),
 		Kind:      1059,
-		Tags:      nostr.Tags{{"p", receiverPub, "wss://auth.nostr1.com"}},
+		Tags:      nostr.Tags{{"p", receiverPub, receiverRelay}},
 		Content:   encryptedSeal,
 	}
 	giftWrap.Sign(randoSk)

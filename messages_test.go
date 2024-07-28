@@ -20,7 +20,7 @@ func TestSendAndReceiveMessage(t *testing.T) {
 	message := "Hello, this is a test message!"
 
 	// Send the message
-	giftWrap, err := SendMessage(senderSk, receiverPk, message)
+	giftWrap, err := SendMessage(senderSk, receiverPk, message, "wss://somerelay.com", "wss://somerelay.com", "conversation-title")
 	assert.NoError(t, err, "SendMessage should not return an error")
 	assert.NotEmpty(t, giftWrap, "Gift wrap should not be empty")
 
