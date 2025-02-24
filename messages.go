@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	mathrand "math/rand"
 	"os"
+	"time"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip44"
@@ -16,6 +18,7 @@ var logger *log.Logger
 func init() {
 	// Initialize the logger to write to stderr
 	logger = log.New(os.Stderr, "crusher17: ", log.Ldate|log.Ltime|log.Lshortfile)
+	mathrand.Seed(time.Now().UnixNano())
 }
 
 // notes:
@@ -99,6 +102,11 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 	nonce := make([]byte, 32)
 	rand.Read(nonce)
 
+	// Generate a random timestamp within the last 2 days
+	now := nostr.Now()
+	randomOffset := time.Duration(mathrand.Int63n(48 * int64(time.Hour)))
+	pastTimestamp := nostr.Timestamp(time.Unix(int64(now), 0).Add(-randomOffset).Unix())
+
 	conversationKey, err := nip44.GenerateConversationKey(receiverPub, senderSk)
 	if err != nil {
 		logger.Printf("error generating convo key 1: %v", err)
@@ -115,7 +123,7 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 	randoPk, _ := nostr.GetPublicKey(randoSk)
 	seal := nostr.Event{
 		PubKey:    senderPub,
-		CreatedAt: nostr.Now(),
+		CreatedAt: pastTimestamp,
 		Kind:      13,
 		Tags:      nostr.Tags{},
 		Content:   encryptedMsg,
@@ -136,7 +144,7 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 
 	giftWrap := nostr.Event{
 		PubKey:    randoPk,
-		CreatedAt: nostr.Now(),
+		CreatedAt: pastTimestamp,
 		Kind:      1059,
 		Tags:      nostr.Tags{{"p", receiverPub, receiverRelay}},
 		Content:   encryptedSeal,

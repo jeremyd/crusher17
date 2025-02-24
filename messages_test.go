@@ -3,6 +3,7 @@ package crusher17
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +37,23 @@ func TestGiftWrapEvent(t *testing.T) {
 	assert.Len(t, gwe.GiftWraps, 2, "Should have 2 gift wraps (one for receiver, one for sender)")
 	assert.Contains(t, gwe.GiftWraps, receiverPk, "Should contain gift wrap for receiver")
 	assert.Contains(t, gwe.GiftWraps, senderPk, "Should contain gift wrap for sender")
+
+	// verify timestamps for the gift wraps are within the last 2 days
+	now := time.Now()
+	twoDaysAgo := now.Add(-2 * 24 * time.Hour)
+	pastTimestamp := nostr.Timestamp(twoDaysAgo.Unix())
+
+	// Parse and verify receiver's gift wrap timestamp
+	var receiverGiftWrap nostr.Event
+	err = json.Unmarshal([]byte(gwe.GiftWraps[receiverPk]), &receiverGiftWrap)
+	assert.NoError(t, err, "Should parse receiver's gift wrap")
+	assert.True(t, receiverGiftWrap.CreatedAt > pastTimestamp, "Receiver's gift wrap timestamp should be within the last 2 days")
+
+	// Parse and verify sender's gift wrap timestamp
+	var senderGiftWrap nostr.Event
+	err = json.Unmarshal([]byte(gwe.GiftWraps[senderPk]), &senderGiftWrap)
+	assert.NoError(t, err, "Should parse sender's gift wrap")
+	assert.True(t, senderGiftWrap.CreatedAt > pastTimestamp, "Sender's gift wrap timestamp should be within the last 2 days")
 
 	// Decrypt and verify the receiver's gift wrap
 	decryptedMessage, err := ReceiveMessage(receiverSk, gwe.GiftWraps[receiverPk])
