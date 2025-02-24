@@ -96,15 +96,15 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 		return "", err
 	}
 
-	salt := make([]byte, 32)
-	rand.Read(salt)
+	nonce := make([]byte, 32)
+	rand.Read(nonce)
 
 	conversationKey, err := nip44.GenerateConversationKey(receiverPub, senderSk)
 	if err != nil {
 		logger.Printf("error generating convo key 1: %v", err)
 		return "", err
 	}
-	encryptedMsg, err := nip44.Encrypt(ev.String(), conversationKey, nip44.WithCustomSalt(salt))
+	encryptedMsg, err := nip44.Encrypt(ev.String(), conversationKey, nip44.WithCustomNonce(nonce))
 	if err != nil {
 		logger.Printf("error encrypting nip44 1: %v", err)
 		return "", err
@@ -128,7 +128,7 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 		logger.Printf("error generating convo key for seal: %v", err)
 		return "", err
 	}
-	encryptedSeal, err := nip44.Encrypt(seal.String(), sealConvoKey, nip44.WithCustomSalt(salt))
+	encryptedSeal, err := nip44.Encrypt(seal.String(), sealConvoKey, nip44.WithCustomNonce(nonce))
 	if err != nil {
 		logger.Printf("error encrypting seal: %v", err)
 		return "", err
