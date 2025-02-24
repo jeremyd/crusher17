@@ -180,7 +180,7 @@ func ReceiveMessage(receiverSk string, giftWrap string) (string, error) {
 	}
 	isOk, err := k13.CheckSignature()
 	if err != nil || !isOk {
-		logger.Printf("error checking signature: %v, isOk: %v", err, isOk)
+		logger.Printf("error checking signature: %v, valid: %v, giftwrapped event ID: %s, kind13 ID: %s", err, isOk, ev.ID, k13.ID)
 		return "", err
 	}
 	k14ConvoKey, err := nip44.GenerateConversationKey(k13.PubKey, receiverSk)
