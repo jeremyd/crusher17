@@ -3,22 +3,15 @@ package crusher17
 import (
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
-	"log"
 	mathrand "math/rand"
-	"os"
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip44"
 )
 
-var logger *log.Logger
-
 func init() {
-	// Initialize the logger to write to stderr
-	logger = log.New(os.Stderr, "crusher17: ", log.Ldate|log.Ltime|log.Lshortfile)
-	mathrand.Seed(time.Now().UnixNano())
+	// used to have logger here
 }
 
 // notes:
@@ -46,11 +39,12 @@ func (gwe *GiftWrapEvent) Wrap() error {
 
 	senderPub, err := nostr.GetPublicKey(gwe.SenderSecretKey)
 	if err != nil {
-		logger.Printf("error getting public key 1: %v", err)
 		return err
 	}
 
-	tagAll := nostr.Tags{nostr.Tag{"p", senderPub, gwe.SenderRelay}}
+	//tagAll := nostr.Tags{nostr.Tag{"p", senderPub, gwe.SenderRelay}}
+	tagAll := nostr.Tags{}
+
 	for receiverPub, receiverRelay := range gwe.ReceiverPubkeys {
 		tagAll = append(tagAll, nostr.Tag{"p", receiverPub, receiverRelay})
 	}
@@ -77,7 +71,6 @@ func (gwe *GiftWrapEvent) Wrap() error {
 	for receiverPub, receiverRelay := range gwe.ReceiverPubkeys {
 		result, err := WrapMessage(ev, gwe.SenderSecretKey, receiverPub, receiverRelay)
 		if err != nil {
-			logger.Printf("error wrapping message 1: %v", err)
 			return err
 		}
 
@@ -95,7 +88,6 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 
 	senderPub, err := nostr.GetPublicKey(senderSk)
 	if err != nil {
-		logger.Printf("error getting public key 1: %v", err)
 		return "", err
 	}
 
@@ -109,12 +101,10 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 
 	conversationKey, err := nip44.GenerateConversationKey(receiverPub, senderSk)
 	if err != nil {
-		logger.Printf("error generating convo key 1: %v", err)
 		return "", err
 	}
 	encryptedMsg, err := nip44.Encrypt(ev.String(), conversationKey, nip44.WithCustomNonce(nonce))
 	if err != nil {
-		logger.Printf("error encrypting nip44 1: %v", err)
 		return "", err
 	}
 	// Create a seal (kind 13) using the encrypted message
@@ -133,12 +123,10 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 	// Encrypt the seal using NIP-44 for sending to receiver (1)
 	sealConvoKey, err := nip44.GenerateConversationKey(receiverPub, randoSk)
 	if err != nil {
-		logger.Printf("error generating convo key for seal: %v", err)
 		return "", err
 	}
 	encryptedSeal, err := nip44.Encrypt(seal.String(), sealConvoKey, nip44.WithCustomNonce(nonce))
 	if err != nil {
-		logger.Printf("error encrypting seal: %v", err)
 		return "", err
 	}
 
@@ -154,54 +142,49 @@ func WrapMessage(ev nostr.Event, senderSk string, receiverPub string, receiverRe
 	return giftWrap.String(), nil
 }
 
-func ReceiveMessage(receiverSk string, giftWrap string) (string, error) {
-	var ev nostr.Event
-	err := json.Unmarshal([]byte(giftWrap), &ev)
-	if err != nil {
-		logger.Printf("error unmarshalling giftwrap: %v", err)
-		return "", err
-	}
+func ReceiveEvent(receiverSk string, ev *nostr.Event) (string, error) {
 	unSealConvoKey, err := nip44.GenerateConversationKey(ev.PubKey, receiverSk)
 	if err != nil {
-		logger.Printf("error generating convo key 3: %v", err)
 		return "", err
 	}
 	decryptedSeal, err := nip44.Decrypt(ev.Content, unSealConvoKey)
 	if err != nil {
-		logger.Printf("error decrypting seal: %v", err)
 		return "", err
 	}
 	var k13 nostr.Event
-	fmt.Println(decryptedSeal)
 	newerr := json.Unmarshal([]byte(decryptedSeal), &k13)
 	if newerr != nil {
-		logger.Printf("error unmarshalling decrypted seal: %v", newerr)
 		return "", newerr
 	}
 	isOk, err := k13.CheckSignature()
 	if err != nil || !isOk {
-		logger.Printf("error checking signature: %v, valid: %v, giftwrapped event ID: %s, kind13 ID: %s", err, isOk, ev.ID, k13.ID)
 		return "", err
 	}
 	k14ConvoKey, err := nip44.GenerateConversationKey(k13.PubKey, receiverSk)
 	if err != nil {
-		logger.Printf("error generating convo key 4: %v", err)
 		return "", err
 	}
 	decryptedK14, err := nip44.Decrypt(k13.Content, k14ConvoKey)
 	if err != nil {
-		logger.Printf("error decrypting k14: %v", err)
 		return "", err
 	}
 	var k14 nostr.Event
 	k14err := json.Unmarshal([]byte(decryptedK14), &k14)
 	if k14err != nil {
-		logger.Printf("error unmarshaling kind 14 event: %v", k14err)
 		return "", k14err
 	}
 	if k13.PubKey != k14.PubKey {
-		logger.Println("impersonation risk: public keys don't match on kind13 and kind14")
 		return "", err
 	}
 	return decryptedK14, nil
+}
+
+func ReceiveMessage(receiverSk string, giftWrap string) (string, error) {
+	var ev nostr.Event
+	err := json.Unmarshal([]byte(giftWrap), &ev)
+	if err != nil {
+		return "", err
+	}
+
+	return ReceiveEvent(receiverSk, &ev)
 }
